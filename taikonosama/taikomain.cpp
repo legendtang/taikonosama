@@ -4,10 +4,10 @@
 ** hge.relishgames.com
 **
 ** Taiko no Sama v0.1.0 pre-alpha
-** Description: A simple game modelled after Taiko no Tatsuji£®Ã´πƒ§Œﬂ_»À£©
+** Description: A simple game modelled after Taiko no TatsujiÔºàÂ§™Èºì„ÅÆÈÅî‰∫∫Ôºâ
 ** Environment: Microsoft Visual Studio Express 2012 for Windows Desktop
 **						  with Haaf's Game Engine 1.81 libraries included
-** Program author: Ã∆Œ≈…˙<sp3478@gmail.com> 
+** Program author: ÂîêÈóªÁîü<sp3478@gmail.com> 
 **				   WHUCS 2012 Class 3 2012302580292
 ** Last change on June 18th.
 **
@@ -18,12 +18,28 @@
 #include "hge.h"
 #include "hgesprite.h"
 #include "hgefont.h"
-#include "hgeparticle.h"
+#include <math.h>
+// #include "hgeparticle.h"
 #include <stdio.h>
 
 // Define the initial horizontal position & the maximum amount of objects
-#define INITX 810.0f
+#define INITX (810.0f)
 #define MAX_OBJECTS 1500
+#define BPM (138.0f)
+#define BGM_OFFSET (-0.5f)
+#define OBJPERIOD (60.0f/BPM) // seconds 
+#define SPEED_FACTOR (2.2f) // num 
+#define TRUE_OBJSPEED (64.0f / OBJPERIOD * SPEED_FACTOR) // px/seconds
+#define PERIOD_TIME (670.0f / TRUE_OBJSPEED ) // seconds
+
+#define DISAPPEAR (140.0f)
+#define SMALL_CIRCLE (167.0f)
+#define LARGE_CIRCLE (149.5f)
+#define RANGE_FIX (1.2f)
+//#define SMALL_CIRCLE_FIX (SMALL_CIRCLE * RANGE_FIX)
+//#define LARGE_CIRCLE_FIX (LARGE_CIRCLE * RANGE_FIX)
+
+
 
 // Pointer to the HGE interface.
 // Helper classes require this to work.
@@ -50,22 +66,27 @@ HEFFECT			snd1, snd2, bgm;		//Resources for sound effect and background music
 class tkObject
 {
 public:
-	double x, y;		//Object position
-	float dx, dy;		//Object speed & direction
+	float x, y;		//Object positio
 	int tktype;			//Object for diferent Taiko type
-	float stx;			//Object for the status image position
 	int ststype;			//Object for the status call back
+	float stx;
 };
 
 // Some "gameplay" variables
 int obj[MAX_OBJECTS];
 //int subobj[100];			  // [Veto] Debug for asynchronous loading
-const float bpm = 138.0f; //Beats per minute 
 int bmtimes = 0;
+int ObjNum=0;
+HCHANNEL BgmChannel;
+int StartTime;
+int NowTime;
+int StartNum, TailNum ;
+float TimeDelta;
+bool PlayToggle = false;
+
 
 void InitBeatmap()
 {
-	int i=0;
 	//const int n=1;			//Debug counter
 	FILE *beatmap;
 	if((beatmap=fopen("s01.txt","r"))==NULL) 
@@ -75,8 +96,8 @@ void InitBeatmap()
 	}
     while(!feof(beatmap))
     {
-        fscanf(beatmap,"%d",&obj[i]);
-        i++;
+        fscanf(beatmap,"%d",&obj[ObjNum]);
+        ObjNum++;
     }
 	fclose(beatmap);
 }
@@ -87,6 +108,14 @@ tkObject* pObjects;
 bool FrameFunc()
 {
 	float dt=hge->Timer_GetDelta();
+	NowTime = hge->Timer_GetTime();
+
+	if ( !PlayToggle) {
+		if ((NowTime - StartTime) > (PERIOD_TIME + BGM_OFFSET)) {
+			hge->Channel_Resume(BgmChannel);
+			PlayToggle = true;
+		}
+	}
 
 	// Process keys status & Play sound effect
 	if (hge->Input_GetKeyState(HGEK_ESCAPE)) return true;
@@ -99,34 +128,38 @@ bool FrameFunc()
 	{
 		hge->Effect_Play(snd2);
 	}
+	StartNum = (int) ((NowTime - StartTime - PERIOD_TIME) / OBJPERIOD) ;
+	StartNum < 0 ? 0 : StartNum ;
+	TimeDelta = fmodf(NowTime - StartTime - PERIOD_TIME, OBJPERIOD) ;
+	TailNum = (int) ((NowTime - StartTime) / OBJPERIOD);
+	TailNum > ObjNum ? ObjNum : TailNum;
 
-	for (int i = 0; i < MAX_OBJECTS; ++i)
+	for (int i = StartNum; i <= TailNum; ++i)
 	{
-		if (pObjects[i].tktype==0)
-		{
-			pObjects[i].ststype=3;
-			continue;
-		}
-		if (i>=1 && pObjects[i-1].ststype==0)
-		{
-			pObjects[i-1].stx=INITX;
-			pObjects[i-1].ststype=3;
-		}
-		pObjects[i].x+=pObjects[i].dx;
-		pObjects[i].y+=pObjects[i].dy;
+		if (pObjects[i].tktype==0) continue;
+
+		//if (i>=1 && pObjects[i-1].ststype==0)
+		//{
+		//	pObjects[i-1].stx=INITX;
+		//	pObjects[i-1].ststype=3;
+		//}
+		pObjects[i].x -= (( TailNum - i ) * OBJPERIOD + TimeDelta) * TRUE_OBJSPEED;
+		//pObjects[i].y+=pObjects[i].dy;
+	}`
 
 		if (hge->Input_KeyDown(HGEK_Z) || hge->Input_KeyDown(HGEK_C))
 		{
 			pObjects[i].stx=134;
 			if(pObjects[i].tktype==1)
 			{
-				if (pObjects[i].x<=180 && pObjects[i].x>=155) 
+				//if (pObjects[i].x<=180 && pObjects[i].x>=155) 
+				if (fabsf(pObjects[i].x - SMALL_CIRCLE) < 39.0f) 
 				{
 					pObjects[i].ststype=1;
 					pObjects[i].x=INITX;
 					pObjects[i].dx=0.0f;
 				}
-				else if (pObjects[i].x<=200 && pObjects[i].x>=150) 
+				else if (fabsf(pObjects[i].x - LARGE_CIRCLE) < 48.0f) 
 				{
 					pObjects[i].ststype=2;
 					pObjects[i].x=INITX;
@@ -141,30 +174,30 @@ bool FrameFunc()
 			pObjects[i].stx=134;
 			if(pObjects[i].tktype==2)
 			{
-				if (pObjects[i].x<=180 && pObjects[i].x>=155) 
+				if (fabsf(pObjects[i].x - SMALL_CIRCLE) < 39.0f) 
+				//if (pObjects[i].x<=180 && pObjects[i].x>=155) 
 				{
 					pObjects[i].ststype=1;
 					pObjects[i].x=INITX;
-					pObjects[i].dx=0.0f;
 				}
-				else if (pObjects[i].x<=200 && pObjects[i].x>=150) 
+				else if (fabsf(pObjects[i].x - LARGE_CIRCLE) < 48.0f) 
+				//else if (pObjects[i].x<=200 && pObjects[i].x>=150) 
 				{
 					pObjects[i].ststype=2;
 					pObjects[i].x=INITX;
-					pObjects[i].dx=0.0f;
 				}
 				else pObjects[i].ststype=0;
 			}
 			else pObjects[i].ststype=0;
 		}
-		if(pObjects[i].x<=140) 
-		{
-			pObjects[i].dx=0.0f;
-			pObjects[i].x=INITX;
-			if(!pObjects[i-1].ststype) pObjects[i-1].stx=INITX;
-			//int time_broke = 500; 
-			//if (hge->Timer_GetTime() >= time_broke) pObjects[i].stx=INITX;
-		}
+		//if(pObjects[i].x<=140) 
+		//{
+		//	pObjects[i].dx=0.0f;
+		//	pObjects[i].x=INITX;
+		//	if(!pObjects[i-1].ststype) pObjects[i-1].stx=INITX;
+		//	//int time_broke = 500; 
+		//	//if (hge->Timer_GetTime() >= time_broke) pObjects[i].stx=INITX;
+		//}
 		//delay(250);
 	}
 
@@ -182,9 +215,11 @@ bool RenderFunc()
 	hge->Gfx_BeginScene();
 	bgspr->Render(0,0);
 	hge->Gfx_Clear(0);
+		
 	//par->Render();
-	for (int i = 0; i < MAX_OBJECTS; ++i)
+	for (int i = 0; i < ObjNum; ++i)
 	{
+		// if (!hge->Channel_IsPlaying(BgmChannel)) break;
 		if (pObjects[i].tktype==1)
 		{
 			spr1->RenderEx(pObjects[i].x, pObjects[i].y, 0, 0.8f, 0.8f);
@@ -239,7 +274,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		sts1=hge->Texture_Load("perfect.png");
 		sts2=hge->Texture_Load("good.png");
 		sts0=hge->Texture_Load("bad.png");
-		bgm=hge->Stream_Load("BadApple.mp3");
+		bgm=hge->Stream_Load("BadApple.wav");
 		if(!snd1 || !snd2 || !tex1 || !tex2 || !sts1 || !sts2 || !sts0)
 		{
 			// If one of the datwa files is not found, display
@@ -288,18 +323,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		// Load Taiko objects
 		for(int i=0;i < MAX_OBJECTS;i++)
 		{
-			pObjects[i].x=INITX+i*64;
-			pObjects[i].dx=-(64.0f/((60.0f/bpm)*60.0f))*2.2f;
+			pObjects[i].x=INITX;
 			pObjects[i].y=215.0f;
-			pObjects[i].dy=0.0f;
 			pObjects[i].tktype=obj[i];
-			pObjects[i].stx=INITX;
 			pObjects[i].ststype=3;
+			pObjects[i].stx = INITX;
 		}
 
 		// Let's rock now!
-		hge->Stream_Play(bgm,false,100);
+		BgmChannel = hge->Stream_Play(bgm,false,100);
+		hge->Channel_Pause(BgmChannel);
+		StartTime = hge->Timer_GetTime();
 		hge->System_Start();
+
+		hge->Channel_Stop(BgmChannel);
 
 		// Delete created objects and free loaded resources
 		//delete par;
