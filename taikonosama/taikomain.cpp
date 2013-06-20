@@ -73,14 +73,13 @@ public:
 };
 
 // Some "gameplay" variables
+HCHANNEL BgmChannel;
 int obj[MAX_OBJECTS];
 //int subobj[100];			  // [Veto] Debug for asynchronous loading
 int bmtimes = 0;
 int ObjNum=0;
-HCHANNEL BgmChannel;
-int StartTime;
-int NowTime;
-int StartNum, TailNum ;
+int StartTime, NowTime;
+int StartNum, TailNum;
 float TimeDelta;
 bool PlayToggle = false;
 
@@ -110,7 +109,7 @@ bool FrameFunc()
 	float dt=hge->Timer_GetDelta();
 	NowTime = hge->Timer_GetTime();
 
-	if ( !PlayToggle) {
+	if (!PlayToggle) {
 		if ((NowTime - StartTime) > (PERIOD_TIME + BGM_OFFSET)) {
 			hge->Channel_Resume(BgmChannel);
 			PlayToggle = true;
@@ -145,51 +144,51 @@ bool FrameFunc()
 		//}
 		pObjects[i].x -= (( TailNum - i ) * OBJPERIOD + TimeDelta) * TRUE_OBJSPEED;
 		//pObjects[i].y+=pObjects[i].dy;
-	}`
+	}
 
-		if (hge->Input_KeyDown(HGEK_Z) || hge->Input_KeyDown(HGEK_C))
+	if (hge->Input_KeyDown(HGEK_Z) || hge->Input_KeyDown(HGEK_C))
+	{
+		pObjects[i].stx=134;
+		if(pObjects[i].tktype==1)
 		{
-			pObjects[i].stx=134;
-			if(pObjects[i].tktype==1)
+			//if (pObjects[i].x<=180 && pObjects[i].x>=155) 
+			if (fabsf(pObjects[i].x - SMALL_CIRCLE) < 39.0f) 
 			{
-				//if (pObjects[i].x<=180 && pObjects[i].x>=155) 
-				if (fabsf(pObjects[i].x - SMALL_CIRCLE) < 39.0f) 
-				{
-					pObjects[i].ststype=1;
-					pObjects[i].x=INITX;
-					pObjects[i].dx=0.0f;
-				}
-				else if (fabsf(pObjects[i].x - LARGE_CIRCLE) < 48.0f) 
-				{
-					pObjects[i].ststype=2;
-					pObjects[i].x=INITX;
-					pObjects[i].dx=0.0f;
-				}
-				else pObjects[i].ststype=0;
+				pObjects[i].ststype=1;
+				pObjects[i].x=INITX;
+				pObjects[i].dx=0.0f;
+			}
+			else if (fabsf(pObjects[i].x - LARGE_CIRCLE) < 48.0f) 
+			{
+				pObjects[i].ststype=2;
+				pObjects[i].x=INITX;
+				pObjects[i].dx=0.0f;
 			}
 			else pObjects[i].ststype=0;
 		}
-		if (hge->Input_KeyDown(HGEK_X) || hge->Input_KeyDown(HGEK_V))
+		else pObjects[i].ststype=0;
+	}
+	if (hge->Input_KeyDown(HGEK_X) || hge->Input_KeyDown(HGEK_V))
+	{
+		pObjects[i].stx=134;
+		if(pObjects[i].tktype==2)
 		{
-			pObjects[i].stx=134;
-			if(pObjects[i].tktype==2)
-			{
-				if (fabsf(pObjects[i].x - SMALL_CIRCLE) < 39.0f) 
+			if (fabsf(pObjects[i].x - SMALL_CIRCLE) < 39.0f) 
 				//if (pObjects[i].x<=180 && pObjects[i].x>=155) 
-				{
-					pObjects[i].ststype=1;
-					pObjects[i].x=INITX;
-				}
-				else if (fabsf(pObjects[i].x - LARGE_CIRCLE) < 48.0f) 
+			{
+				pObjects[i].ststype=1;
+				pObjects[i].x=INITX;
+			}
+			else if (fabsf(pObjects[i].x - LARGE_CIRCLE) < 48.0f) 
 				//else if (pObjects[i].x<=200 && pObjects[i].x>=150) 
-				{
-					pObjects[i].ststype=2;
-					pObjects[i].x=INITX;
-				}
-				else pObjects[i].ststype=0;
+			{
+				pObjects[i].ststype=2;
+				pObjects[i].x=INITX;
 			}
 			else pObjects[i].ststype=0;
 		}
+		else pObjects[i].ststype=0;
+	}
 		//if(pObjects[i].x<=140) 
 		//{
 		//	pObjects[i].dx=0.0f;
@@ -199,7 +198,6 @@ bool FrameFunc()
 		//	//if (hge->Timer_GetTime() >= time_broke) pObjects[i].stx=INITX;
 		//}
 		//delay(250);
-	}
 
 	// Update particle system (Plan in next version!)
 	//par->info.nEmission=(int)(dx*dx+dy*dy)*2;
@@ -246,7 +244,7 @@ bool RenderFunc()
 	hge->Gfx_EndScene();
 
 	return false;
-}
+};
 
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
@@ -330,6 +328,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			pObjects[i].stx = INITX;
 		}
 
+
 		// Let's rock now!
 		BgmChannel = hge->Stream_Play(bgm,false,100);
 		hge->Channel_Pause(BgmChannel);
@@ -363,4 +362,4 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	hge->System_Shutdown();
 	hge->Release();
 	return 0;
-}
+}所以
