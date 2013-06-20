@@ -29,17 +29,26 @@
 #define BGM_OFFSET (-0.5f)
 #define OBJPERIOD (60.0f/BPM) // seconds 
 #define SPEED_FACTOR (2.2f) // num 
-#define TRUE_OBJSPEED (64.0f / OBJPERIOD * SPEED_FACTOR) // px/seconds
+#define TRUE_OBJSPEED ((64.0f / OBJPERIOD) * SPEED_FACTOR) // px/seconds
 #define PERIOD_TIME (670.0f / TRUE_OBJSPEED ) // seconds
 
 #define DISAPPEAR (140.0f)
 #define SMALL_CIRCLE (167.0f)
 #define LARGE_CIRCLE (149.5f)
-#define RANGE_FIX (1.2f)
+#define RANGE_FIX (2.0f)
 //#define SMALL_CIRCLE_FIX (SMALL_CIRCLE * RANGE_FIX)
 //#define LARGE_CIRCLE_FIX (LARGE_CIRCLE * RANGE_FIX)
+#define SYMBOL_X (134.0f)
+#define SYMBOL_Y (186.0f)
+#define SYMBOL_LIFETIME 3
 
+#define GREAT_RANGE (10.0f)
+#define GOOD_RANGE (GREAT_RANGE * RANGE_FIX)
 
+#define MISS 0
+#define GREAT 1
+#define GOOD 2
+#define NONE 3
 
 // Pointer to the HGE interface.
 // Helper classes require this to work.
@@ -68,8 +77,17 @@ class tkObject
 public:
 	float x, y;		//Object positio
 	int tktype;			//Object for diferent Taiko type
-	int ststype;			//Object for the status call back
-	float stx;
+	//int ststype;			//Object for the status call back
+};
+
+// Symbol objects
+class SybObject
+{
+public:
+	float x, y;
+	int lifetime;
+	int objid;
+	int ststype[MAX_OBJECTS];
 };
 
 // Some "gameplay" variables
@@ -78,11 +96,13 @@ int obj[MAX_OBJECTS];
 //int subobj[100];			  // [Veto] Debug for asynchronous loading
 int bmtimes = 0;
 int ObjNum=0;
-int StartTime, NowTime;
+double StartTime, NowTime;
 int StartNum, TailNum;
-float TimeDelta;
+double TimeDelta;
 bool PlayToggle = false;
 
+tkObject *pObjects;
+SybObject sybobject;
 
 void InitBeatmap()
 {
@@ -101,13 +121,36 @@ void InitBeatmap()
 	fclose(beatmap);
 }
 
-tkObject* pObjects;
-
 // Load Frame function
 bool FrameFunc()
 {
 	float dt=hge->Timer_GetDelta();
 	NowTime = hge->Timer_GetTime();
+
+	StartNum = (int) ((NowTime - StartTime - PERIOD_TIME) / OBJPERIOD) ;
+	StartNum = StartNum < 0 ? 0 : StartNum ;
+	//StartNum = 0;
+	TimeDelta = fmodf(NowTime - StartTime, OBJPERIOD) ;
+	TailNum = (int) ((NowTime - StartTime) / OBJPERIOD);
+	TailNum = TailNum > ObjNum ? ObjNum : TailNum;
+		
+
+	if (StartNum - sybobject.objid > SYMBOL_LIFETIME)
+	{
+		sybobject.objid = StartNum;
+	}	
+
+	if (StartNum - sybobject.objid >= 1)
+	{
+		if (pObjects[StartNum-1].tktype > 0)
+		{
+			if (sybobject.ststype[StartNum-1] == NONE)
+			{
+				sybobject.ststype[StartNum] = MISS; //set symbol missed
+				sybobject.objid = StartNum;
+			}
+		}
+	}
 
 	if (!PlayToggle) {
 		if ((NowTime - StartTime) > (PERIOD_TIME + BGM_OFFSET)) {
@@ -115,7 +158,7 @@ bool FrameFunc()
 			PlayToggle = true;
 		}
 	}
-
+	
 	// Process keys status & Play sound effect
 	if (hge->Input_GetKeyState(HGEK_ESCAPE)) return true;
 	if (hge->Input_KeyDown(HGEK_Z) || hge->Input_KeyDown(HGEK_C))
@@ -127,77 +170,67 @@ bool FrameFunc()
 	{
 		hge->Effect_Play(snd2);
 	}
-	StartNum = (int) ((NowTime - StartTime - PERIOD_TIME) / OBJPERIOD) ;
-	StartNum < 0 ? 0 : StartNum ;
-	TimeDelta = fmodf(NowTime - StartTime - PERIOD_TIME, OBJPERIOD) ;
-	TailNum = (int) ((NowTime - StartTime) / OBJPERIOD);
-	TailNum > ObjNum ? ObjNum : TailNum;
 
-	for (int i = StartNum; i <= TailNum; ++i)
+	for (int i = StartNum; i <= TailNum; i++)
 	{
-		if (pObjects[i].tktype==0) continue;
-
-		//if (i>=1 && pObjects[i-1].ststype==0)
-		//{
-		//	pObjects[i-1].stx=INITX;
-		//	pObjects[i-1].ststype=3;
-		//}
-		pObjects[i].x -= (( TailNum - i ) * OBJPERIOD + TimeDelta) * TRUE_OBJSPEED;
-		//pObjects[i].y+=pObjects[i].dy;
+		pObjects[i].x = INITX - ((( TailNum - i - 1) * OBJPERIOD + TimeDelta) * TRUE_OBJSPEED);
+		//pObjects[i].x -= dt * TRUE_OBJSPEED;
 	}
 
 	if (hge->Input_KeyDown(HGEK_Z) || hge->Input_KeyDown(HGEK_C))
 	{
-		pObjects[i].stx=134;
-		if(pObjects[i].tktype==1)
-		{
-			//if (pObjects[i].x<=180 && pObjects[i].x>=155) 
-			if (fabsf(pObjects[i].x - SMALL_CIRCLE) < 39.0f) 
+		if (pObjects[StartNum].tktype == 1 ) 
+	  	{
+			if (fabsf(pObjects[StartNum].x - SMALL_CIRCLE) < GREAT_RANGE) 
 			{
-				pObjects[i].ststype=1;
-				pObjects[i].x=INITX;
-				pObjects[i].dx=0.0f;
+				pObjects[StartNum].tktype = 0;
+				sybobject.ststype[StartNum] = GREAT;
+				sybobject.objid = StartNum;
 			}
-			else if (fabsf(pObjects[i].x - LARGE_CIRCLE) < 48.0f) 
+			else if (fabsf(pObjects[StartNum].x - LARGE_CIRCLE) < GOOD_RANGE) 
 			{
-				pObjects[i].ststype=2;
-				pObjects[i].x=INITX;
-				pObjects[i].dx=0.0f;
+				pObjects[StartNum].tktype = 0;
+				sybobject.ststype[StartNum] = GOOD; 
+				sybobject.objid = StartNum;
 			}
-			else pObjects[i].ststype=0;
 		}
-		else pObjects[i].ststype=0;
+		else
+		{
+			if (fabsf(pObjects[StartNum].x - LARGE_CIRCLE) < GOOD_RANGE) 
+			{
+				pObjects[StartNum].tktype = 0;
+				sybobject.ststype[StartNum] = MISS; 
+				sybobject.objid = StartNum;
+			}
+		}
 	}
 	if (hge->Input_KeyDown(HGEK_X) || hge->Input_KeyDown(HGEK_V))
 	{
-		pObjects[i].stx=134;
-		if(pObjects[i].tktype==2)
-		{
-			if (fabsf(pObjects[i].x - SMALL_CIRCLE) < 39.0f) 
-				//if (pObjects[i].x<=180 && pObjects[i].x>=155) 
+		if (pObjects[StartNum].tktype == 2) 
+	  	{
+			if (fabsf(pObjects[StartNum].x - SMALL_CIRCLE) < GREAT_RANGE) 
 			{
-				pObjects[i].ststype=1;
-				pObjects[i].x=INITX;
+				pObjects[StartNum].tktype = 0;
+				sybobject.ststype[StartNum] = GREAT; 
+				sybobject.objid = StartNum;
 			}
-			else if (fabsf(pObjects[i].x - LARGE_CIRCLE) < 48.0f) 
-				//else if (pObjects[i].x<=200 && pObjects[i].x>=150) 
+			else if (fabsf(pObjects[StartNum].x - LARGE_CIRCLE) < GOOD_RANGE) 
 			{
-				pObjects[i].ststype=2;
-				pObjects[i].x=INITX;
+				pObjects[StartNum].tktype = 0;
+				sybobject.ststype[StartNum] = GOOD; 
+				sybobject.objid = StartNum;
 			}
-			else pObjects[i].ststype=0;
 		}
-		else pObjects[i].ststype=0;
+		else
+		{
+			if (fabsf(pObjects[StartNum].x - LARGE_CIRCLE) < GOOD_RANGE) 
+			{
+				pObjects[StartNum].tktype = 0;
+				sybobject.ststype[StartNum] = MISS; 
+				sybobject.objid = StartNum;
+			}
+		}
 	}
-		//if(pObjects[i].x<=140) 
-		//{
-		//	pObjects[i].dx=0.0f;
-		//	pObjects[i].x=INITX;
-		//	if(!pObjects[i-1].ststype) pObjects[i-1].stx=INITX;
-		//	//int time_broke = 500; 
-		//	//if (hge->Timer_GetTime() >= time_broke) pObjects[i].stx=INITX;
-		//}
-		//delay(250);
 
 	// Update particle system (Plan in next version!)
 	//par->info.nEmission=(int)(dx*dx+dy*dy)*2;
@@ -213,9 +246,11 @@ bool RenderFunc()
 	hge->Gfx_BeginScene();
 	bgspr->Render(0,0);
 	hge->Gfx_Clear(0);
-		
+	
+	fnt->printf(400, 300, HGETEXT_LEFT, "%d %d", StartNum, TailNum);
+	fnt->printf(400, 200, HGETEXT_LEFT, "%.1f %.1f %.1f", pObjects[StartNum].x, pObjects[TailNum].x,pObjects[StartNum].x-pObjects[TailNum].x);
 	//par->Render();
-	for (int i = 0; i < ObjNum; ++i)
+	for (int i = StartNum ;i < TailNum; ++i)
 	{
 		// if (!hge->Channel_IsPlaying(BgmChannel)) break;
 		if (pObjects[i].tktype==1)
@@ -223,22 +258,21 @@ bool RenderFunc()
 			spr1->RenderEx(pObjects[i].x, pObjects[i].y, 0, 0.8f, 0.8f);
 			//stspr1->RenderEx(134,186,0,0.5f,0.5f);
 		}
-		if (pObjects[i].tktype==2)
+		else if (pObjects[i].tktype==2)
 		{
 			spr2->RenderEx(pObjects[i].x, pObjects[i].y, 0, 0.8f, 0.8f);
 			//Boom(i);
 		}
-
-		switch(pObjects[i].ststype)
+		switch(sybobject.ststype[sybobject.objid])
 		{
-			case 1: stspr1->RenderEx(pObjects[i].stx,186,0,0.5f,0.5f);break;
-			case 2: stspr2->RenderEx(pObjects[i].stx,186,0,0.5f,0.5f);break;
-			case 0: stspr0->RenderEx(pObjects[i].stx,186,0,0.5f,0.5f);
+			case 1: stspr1->RenderEx(SYMBOL_X,SYMBOL_Y,0,0.5f,0.5f);break;
+			case 2: stspr2->RenderEx(SYMBOL_X,SYMBOL_Y,0,0.5f,0.5f);break;
+			case 0: stspr0->RenderEx(SYMBOL_X,SYMBOL_Y,0,0.5f,0.5f);
 		}
 	}
 
 	//Debug info: Get time between this and last RenderFunc function and FPS
-	fnt->printf(5, 5, HGETEXT_LEFT, "dt:%.3f\nFPS:%d (constant)", hge->Timer_GetDelta(), hge->Timer_GetFPS());
+	fnt->printf(5, 5, HGETEXT_LEFT, "%.3f\ndt:%.3f\nFPS:%d (constant)",TimeDelta * TRUE_OBJSPEED, hge->Timer_GetDelta(), hge->Timer_GetFPS());
 
 	//End scene
 	hge->Gfx_EndScene();
@@ -250,7 +284,7 @@ bool RenderFunc()
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
 	hge = hgeCreate(HGE_VERSION);
-	//hge->System_SetState(HGE_SHOWSPLASH, false);				//LOGO cancelled for debug
+	hge->System_SetState(HGE_SHOWSPLASH, false);				//LOGO cancelled for debug
 	hge->System_SetState(HGE_LOGFILE, "taikonosama.log");
 	hge->System_SetState(HGE_FRAMEFUNC, FrameFunc);
 	hge->System_SetState(HGE_RENDERFUNC, RenderFunc);
@@ -324,10 +358,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			pObjects[i].x=INITX;
 			pObjects[i].y=215.0f;
 			pObjects[i].tktype=obj[i];
-			pObjects[i].ststype=3;
-			pObjects[i].stx = INITX;
+			sybobject.ststype[i] = NONE;
 		}
 
+		sybobject.x = SYMBOL_X;
+		sybobject.y = SYMBOL_Y;
+		sybobject.objid = 0;
+	
 
 		// Let's rock now!
 		BgmChannel = hge->Stream_Play(bgm,false,100);
@@ -362,4 +399,4 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	hge->System_Shutdown();
 	hge->Release();
 	return 0;
-}所以
+}
